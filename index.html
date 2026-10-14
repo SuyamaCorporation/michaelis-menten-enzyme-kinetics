@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Michaelis-Menten Enzyme Kinetics Plotter</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #030712; }
+  input[type=range] { accent-color: #f59e0b; }
+</style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-4">
+<div class="max-w-5xl mx-auto">
+  <h1 class="text-3xl font-bold text-center mb-1 text-amber-400">Michaelis-Menten Enzyme Kinetics</h1>
+  <p class="text-center text-gray-400 mb-6 text-sm">v = V<sub>max</sub> · [S] / (K<sub>m</sub> + [S])</p>
+
+  <!-- Controls -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <!-- Base parameters -->
+    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+      <h2 class="text-sm font-semibold mb-3 text-amber-300">Enzyme Parameters</h2>
+      <div class="space-y-4">
+        <div>
+          <div class="flex justify-between mb-1">
+            <label class="text-xs text-gray-400">K<sub>m</sub> (μM)</label>
+            <span id="kmVal" class="text-xs text-amber-400 font-bold">50 μM</span>
+          </div>
+          <input type="range" id="kmSlider" min="1" max="500" value="50" step="1" class="w-full h-2">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <label class="text-xs text-gray-400">V<sub>max</sub> (μM/s)</label>
+            <span id="vmaxVal" class="text-xs text-amber-400 font-bold">100 μM/s</span>
+          </div>
+          <input type="range" id="vmaxSlider" min="1" max="500" value="100" step="1" class="w-full h-2">
+        </div>
+        <div>
+          <div class="flex justify-between mb-1">
+            <label class="text-xs text-gray-400 font-semibold">Inhibition Type</label>
+          </div>
+          <select id="inhibType" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-gray-200">
+            <option value="none">None (No inhibitor)</option>
+            <option value="competitive">Competitive</option>
+            <option value="noncompetitive">Non-competitive</option>
+            <option value="uncompetitive">Uncompetitive</option>
+          </select>
+        </div>
+        <div id="inhibParams" class="hidden space-y-3">
+          <div>
+            <div class="flex justify-between mb-1">
+              <label class="text-xs text-gray-400">[I] Inhibitor (μM)</label>
+              <span id="iConc" class="text-xs text-red-400 font-bold">20 μM</span>
+            </div>
+            <input type="range" id="inhibSlider" min="1" max="200" value="20" step="1" class="w-full h-2">
+          </div>
+          <div>
+            <div class="flex justify-between mb-1">
+              <label class="text-xs text-gray-400">Ki (μM)</label>
+              <span id="kiVal" class="text-xs text-red-400 font-bold">10 μM</span>
+            </div>
+            <input type="range" id="kiSlider" min="1" max="200" value="10" step="1" class="w-full h-2">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Derived values -->
+    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+      <h2 class="text-sm font-semibold mb-3 text-amber-300">Kinetic Summary</h2>
+      <div class="space-y-2">
+        <div class="flex justify-between py-1 border-b border-gray-800">
+          <span class="text-xs text-gray-400">K<sub>m</sub></span>
+          <span id="sumKm" class="text-xs font-bold text-amber-400">50 μM</span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-gray-800">
+          <span class="text-xs text-gray-400">V<sub>max</sub></span>
+          <span id="sumVmax" class="text-xs font-bold text-amber-400">100 μM/s</span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-gray-800">
+          <span class="text-xs text-gray-400">v at [S]=K<sub>m</sub></span>
+          <span id="vAtKm" class="text-xs font-bold text-green-400">50 μM/s (½V<sub>max</sub>)</span>
+        </div>
+        <div class="flex justify-between py-1 border-b border-gray-800">
+          <span class="text-xs text-gray-400">v at [S]=10K<sub>m</sub></span>
+          <span id="vAt10Km" class="text-xs font-bold text-green-400">90.9 μM/s</span>
+        </div>
+        <div id="inhibSummary" class="hidden">
+          <div class="flex justify-between py-1 border-b border-gray-800">
+            <span class="text-xs text-gray-400">K<sub>m,app</sub></span>
+            <span id="kmApp" class="text-xs font-bold text-red-400">—</span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-gray-800">
+            <span class="text-xs text-gray-400">V<sub>max,app</sub></span>
+            <span id="vmaxApp" class="text-xs font-bold text-red-400">—</span>
+          </div>
+        </div>
+        <div class="mt-3 p-2 bg-gray-800 rounded-lg">
+          <p class="text-xs text-gray-400 font-semibold">Annotations</p>
+          <p class="text-xs text-gray-300 mt-1" id="annotation1">• K<sub>m</sub>: [S] giving ½V<sub>max</sub> — measure of affinity</p>
+          <p class="text-xs text-gray-300 mt-1" id="annotation2">• V<sub>max</sub>: rate at saturating [S] — measure of catalytic capacity</p>
+          <p class="text-xs text-gray-300 mt-1" id="annotation3">• k<sub>cat</sub> = V<sub>max</sub>/[E]<sub>T</sub> — turnover number</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- LB plot info -->
+    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+      <h2 class="text-sm font-semibold mb-3 text-amber-300">Lineweaver-Burk Analysis</h2>
+      <p class="text-xs text-gray-400 mb-2">Double-reciprocal plot (1/v vs 1/[S]):</p>
+      <div class="font-mono text-xs bg-gray-800 rounded p-2 mb-3 text-gray-300">
+        1/v = (K<sub>m</sub>/V<sub>max</sub>)·(1/[S]) + 1/V<sub>max</sub><br>
+        y-int = 1/V<sub>max</sub><br>
+        x-int = −1/K<sub>m</sub><br>
+        slope = K<sub>m</sub>/V<sub>max</sub>
+      </div>
+      <div class="space-y-1 text-xs">
+        <div class="flex justify-between"><span class="text-gray-400">y-intercept (1/V<sub>max</sub>)</span><span id="yInt" class="text-amber-400 font-bold">0.0100</span></div>
+        <div class="flex justify-between"><span class="text-gray-400">x-intercept (−1/K<sub>m</sub>)</span><span id="xInt" class="text-amber-400 font-bold">−0.0200</span></div>
+        <div class="flex justify-between"><span class="text-gray-400">Slope (K<sub>m</sub>/V<sub>max</sub>)</span><span id="lbSlope" class="text-amber-400 font-bold">0.5000</span></div>
+      </div>
+      <div class="mt-3 p-2 bg-gray-800 rounded-lg text-xs text-gray-400">
+        <p class="font-semibold text-gray-300 mb-1">Inhibition patterns on LB:</p>
+        <p>• Competitive: same y-int, changed slope</p>
+        <p>• Non-competitive: same x-int, changed y-int</p>
+        <p>• Uncompetitive: parallel lines (same slope)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Canvases -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+      <h2 class="text-sm font-semibold mb-2 text-gray-300">Michaelis-Menten Velocity Curve</h2>
+      <canvas id="mmCanvas" width="420" height="320" class="w-full rounded"></canvas>
+    </div>
+    <div class="bg-gray-900 rounded-xl p-4 border border-gray-800">
+      <h2 class="text-sm font-semibold mb-2 text-gray-300">Lineweaver-Burk Double-Reciprocal Plot</h2>
+      <canvas id="lbCanvas" width="420" height="320" class="w-full rounded"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+const kmSlider    = document.getElementById('kmSlider');
+const vmaxSlider  = document.getElementById('vmaxSlider');
+const inhibType   = document.getElementById('inhibType');
+const inhibSlider = document.getElementById('inhibSlider');
+const kiSlider    = document.getElementById('kiSlider');
+
+function mm(s, km, vmax) { return vmax * s / (km + s); }
+
+function getAppParams(km, vmax, type, iConc, ki) {
+  if (type === 'competitive') {
+    return { kmApp: km * (1 + iConc / ki), vmaxApp: vmax };
+  } else if (type === 'noncompetitive') {
+    const alpha = 1 + iConc / ki;
+    return { kmApp: km, vmaxApp: vmax / alpha };
+  } else if (type === 'uncompetitive') {
+    const alpha = 1 + iConc / ki;
+    return { kmApp: km / alpha, vmaxApp: vmax / alpha };
+  }
+  return { kmApp: km, vmaxApp: vmax };
+}
+
+function update() {
+  const km   = parseFloat(kmSlider.value);
+  const vmax = parseFloat(vmaxSlider.value);
+  const type = inhibType.value;
+  const iC   = parseFloat(inhibSlider.value);
+  const ki   = parseFloat(kiSlider.value);
+
+  document.getElementById('kmVal').textContent   = km + ' μM';
+  document.getElementById('vmaxVal').textContent = vmax + ' μM/s';
+  document.getElementById('iConc').textContent   = iC + ' μM';
+  document.getElementById('kiVal').textContent   = ki + ' μM';
+
+  document.getElementById('inhibParams').classList.toggle('hidden', type === 'none');
+  document.getElementById('inhibSummary').classList.toggle('hidden', type === 'none');
+
+  document.getElementById('sumKm').textContent   = km + ' μM';
+  document.getElementById('sumVmax').textContent = vmax + ' μM/s';
+  document.getElementById('vAtKm').innerHTML     = (vmax / 2).toFixed(1) + ' μM/s (½V<sub>max</sub>)';
+  document.getElementById('vAt10Km').textContent = mm(10 * km, km, vmax).toFixed(1) + ' μM/s';
+
+  document.getElementById('yInt').textContent  = (1 / vmax).toFixed(5);
+  document.getElementById('xInt').textContent  = (-1 / km).toFixed(5);
+  document.getElementById('lbSlope').textContent = (km / vmax).toFixed(5);
+
+  if (type !== 'none') {
+    const app = getAppParams(km, vmax, type, iC, ki);
+    document.getElementById('kmApp').textContent   = app.kmApp.toFixed(1) + ' μM';
+    document.getElementById('vmaxApp').textContent = app.vmaxApp.toFixed(1) + ' μM/s';
+  }
+
+  drawMM(km, vmax, type, iC, ki);
+  drawLB(km, vmax, type, iC, ki);
+}
+
+function drawMM(km, vmax, type, iC, ki) {
+  const canvas = document.getElementById('mmCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#111827'; ctx.fillRect(0, 0, W, H);
+
+  const pad = { l: 60, r: 20, t: 25, b: 45 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+
+  const sMax = km * 10;
+  const vMax2 = vmax * 1.05;
+
+  function toX(s) { return pad.l + (s / sMax) * cw; }
+  function toY(v) { return pad.t + ch - (v / vMax2) * ch; }
+
+  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1;
+  for (let s = 0; s <= sMax; s += sMax / 5) {
+    ctx.beginPath(); ctx.moveTo(toX(s), pad.t); ctx.lineTo(toX(s), pad.t + ch); ctx.stroke();
+    ctx.fillStyle = '#6B7280'; ctx.font = '10px monospace'; ctx.fillText(s.toFixed(0), toX(s) - 12, pad.t + ch + 14);
+  }
+  for (let v = 0; v <= vMax2; v += vmax / 4) {
+    ctx.beginPath(); ctx.moveTo(pad.l, toY(v)); ctx.lineTo(pad.l + cw, toY(v)); ctx.stroke();
+    ctx.fillStyle = '#6B7280'; ctx.font = '10px monospace'; ctx.fillText(v.toFixed(0), pad.l - 38, toY(v) + 4);
+  }
+
+  ctx.strokeStyle = '#4B5563'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ch); ctx.lineTo(pad.l + cw, pad.t + ch); ctx.stroke();
+
+  // Vmax asymptote
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, toY(vmax)); ctx.lineTo(pad.l + cw, toY(vmax)); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#fbbf24'; ctx.font = '10px sans-serif'; ctx.fillText('V_max=' + vmax, pad.l + 4, toY(vmax) - 4);
+
+  // Km vertical
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(toX(km), pad.t); ctx.lineTo(toX(km), pad.t + ch); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#9ca3af'; ctx.font = '10px sans-serif'; ctx.fillText('Km=' + km, toX(km) + 4, pad.t + 14);
+
+  // ½ Vmax horizontal
+  ctx.setLineDash([2, 4]); ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, toY(vmax / 2)); ctx.lineTo(toX(km), toY(vmax / 2)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  function drawCurve(kmv, vmaxv, color, label) {
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    let first = true;
+    for (let s = 0; s <= sMax; s += sMax / 200) {
+      const v = mm(s, kmv, vmaxv);
+      if (first) { ctx.moveTo(toX(s), toY(v)); first = false; }
+      else ctx.lineTo(toX(s), toY(v));
+    }
+    ctx.stroke();
+    const lx = toX(sMax * 0.7);
+    const lv = mm(sMax * 0.7, kmv, vmaxv);
+    ctx.fillStyle = color; ctx.font = 'bold 10px sans-serif';
+    ctx.fillText(label, lx + 4, toY(lv) - 4);
+  }
+
+  drawCurve(km, vmax, '#f59e0b', 'No inhibitor');
+  if (type !== 'none') {
+    const app = getAppParams(km, vmax, type, iC, ki);
+    const colors = { competitive: '#f87171', noncompetitive: '#a78bfa', uncompetitive: '#34d399' };
+    drawCurve(app.kmApp, app.vmaxApp, colors[type] || '#f87171', type.charAt(0).toUpperCase() + type.slice(1));
+  }
+
+  // Km dot
+  ctx.beginPath(); ctx.arc(toX(km), toY(mm(km, km, vmax)), 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#f97316'; ctx.fill();
+
+  ctx.fillStyle = '#9CA3AF'; ctx.font = '11px sans-serif';
+  ctx.fillText('v (μM/s)', pad.l - 55, pad.t - 6);
+  ctx.fillText('[S] (μM)', pad.l + cw / 2 - 20, pad.t + ch + 38);
+}
+
+function drawLB(km, vmax, type, iC, ki) {
+  const canvas = document.getElementById('lbCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#111827'; ctx.fillRect(0, 0, W, H);
+
+  const pad = { l: 65, r: 20, t: 25, b: 45 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+
+  // 1/[S] range
+  const sMin_conc = 5, sMax_conc = km * 10;
+  const inv_s_max = 1 / sMin_conc;
+  const inv_s_min = -1 / km * 1.2;
+
+  const inv_v_min = 0;
+  const inv_v_max = 1 / mm(sMin_conc, km, vmax) * 1.1;
+
+  function toX(inv_s) { return pad.l + ((inv_s - inv_s_min) / (inv_v_max * (km / 1) - inv_s_min + inv_s_min) ) * cw; }
+  // simpler mapping
+  const xRange = inv_s_max - inv_s_min;
+  const yRange = inv_v_max - inv_v_min;
+  function X(inv_s) { return pad.l + ((inv_s - inv_s_min) / xRange) * cw; }
+  function Y(inv_v) { return pad.t + ch - ((inv_v - inv_v_min) / yRange) * ch; }
+
+  // Grid
+  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const iv = inv_v_min + i * yRange / 5;
+    ctx.beginPath(); ctx.moveTo(pad.l, Y(iv)); ctx.lineTo(pad.l + cw, Y(iv)); ctx.stroke();
+    ctx.fillStyle = '#6B7280'; ctx.font = '10px monospace'; ctx.fillText(iv.toFixed(3), pad.l - 50, Y(iv) + 4);
+  }
+  for (let i = 0; i <= 5; i++) {
+    const is_v = inv_s_min + i * xRange / 5;
+    ctx.beginPath(); ctx.moveTo(X(is_v), pad.t); ctx.lineTo(X(is_v), pad.t + ch); ctx.stroke();
+    ctx.fillStyle = '#6B7280'; ctx.font = '10px monospace'; ctx.fillText(is_v.toFixed(3), X(is_v) - 14, pad.t + ch + 14);
+  }
+
+  ctx.strokeStyle = '#4B5563'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, pad.t + ch); ctx.lineTo(pad.l + cw, pad.t + ch); ctx.stroke();
+
+  // Zero lines
+  ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(X(0), pad.t); ctx.lineTo(X(0), pad.t + ch); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad.l, Y(0)); ctx.lineTo(pad.l + cw, Y(0)); ctx.stroke();
+
+  function drawLBLine(kmv, vmaxv, color, label) {
+    // LB: 1/v = (Km/Vmax)*(1/[S]) + 1/Vmax
+    const slope  = kmv / vmaxv;
+    const yIntercept = 1 / vmaxv;
+    // Draw line from negative x to positive x
+    const x0 = inv_s_min, y0 = slope * x0 + yIntercept;
+    const x1 = inv_s_max, y1 = slope * x1 + yIntercept;
+
+    ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.moveTo(X(x0), Y(Math.max(inv_v_min - yRange * 0.1, y0)));
+    ctx.lineTo(X(x1), Y(Math.min(inv_v_max * 1.1, y1)));
+    ctx.stroke();
+
+    // y-intercept dot
+    if (yIntercept >= inv_v_min && yIntercept <= inv_v_max * 1.1) {
+      ctx.beginPath(); ctx.arc(X(0), Y(yIntercept), 4, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+    }
+    // x-intercept dot
+    const xInt_v = -1 / kmv;
+    if (xInt_v >= inv_s_min && xInt_v <= inv_s_max) {
+      ctx.beginPath(); ctx.arc(X(xInt_v), Y(0), 4, 0, Math.PI * 2);
+      ctx.fillStyle = color; ctx.fill();
+    }
+
+    ctx.fillStyle = color; ctx.font = 'bold 10px sans-serif';
+    ctx.fillText(label, X(inv_s_max * 0.5), Y(slope * inv_s_max * 0.5 + yIntercept) - 6);
+  }
+
+  drawLBLine(km, vmax, '#f59e0b', 'Control');
+  if (type !== 'none') {
+    const app = getAppParams(km, vmax, type, iC, ki);
+    const colors = { competitive: '#f87171', noncompetitive: '#a78bfa', uncompetitive: '#34d399' };
+    drawLBLine(app.kmApp, app.vmaxApp, colors[type] || '#f87171', type.charAt(0).toUpperCase() + type.slice(1));
+  }
+
+  ctx.fillStyle = '#9CA3AF'; ctx.font = '11px sans-serif';
+  ctx.fillText('1/v (s/μM)', pad.l - 60, pad.t - 6);
+  ctx.fillText('1/[S] (1/μM)', pad.l + cw / 2 - 35, pad.t + ch + 38);
+}
+
+[kmSlider, vmaxSlider, inhibSlider, kiSlider].forEach(el => el.addEventListener('input', update));
+inhibType.addEventListener('change', update);
+update();
+</script>
+</body>
+</html>
